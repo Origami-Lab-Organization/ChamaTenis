@@ -8,4 +8,5 @@ function required(name: string): string {
 
 export const env = {
   port: Number(required('PORT')),
+  databaseUrl: required('DATABASE_URL'),
 };

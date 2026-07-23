@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  createdAt DateTime @default(now())
+}
+
+model Partida {
+  id         String        @id @default(uuid())
+  criadorId  String
+  oponenteId String?
+  local      String
+  data       DateTime
+  status     StatusPartida @default(aguardando_oponente)
+  placar     String?
+  createdAt  DateTime      @default(now())
+}
+
+enum StatusPartida {
+  aguardando_oponente
+  marcada
+  jogada
+}
