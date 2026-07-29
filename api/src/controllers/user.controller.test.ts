@@ -1,8 +1,13 @@
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registrarErrorHandler } from '../middlewares/error-handler';
-import { DadosCadastroInvalidosError, EmailJaCadastradoError, userService } from '../services/user.service';
-import { cadastrarUsuario } from './user.controller';
+import {
+  CredenciaisInvalidasError,
+  DadosCadastroInvalidosError,
+  EmailJaCadastradoError,
+  userService,
+} from '../services/user.service';
+import { cadastrarUsuario, login } from './user.controller';
 
 vi.mock('../services/user.service', async (importOriginal) => {
   const original = await importOriginal<typeof import('../services/user.service')>();
@@ -10,6 +15,7 @@ vi.mock('../services/user.service', async (importOriginal) => {
     ...original,
     userService: {
       cadastrar: vi.fn(),
+      login: vi.fn(),
     },
   };
 });
@@ -18,6 +24,7 @@ function criarAppDeTeste() {
   const app = Fastify();
   registrarErrorHandler(app);
   app.post('/cadastro', cadastrarUsuario);
+  app.post('/login', login);
   return app;
 }
 
@@ -69,5 +76,42 @@ describe('cadastrarUsuario (controller)', () => {
     });
 
     expect(response.statusCode).toBe(400);
+  });
+});
+
+describe('login (controller)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('retorna 200 com token e dados do usuário quando o login dá certo', async () => {
+    vi.mocked(userService.login).mockResolvedValue({
+      token: 'token-fake',
+      usuario: { id: 'usuario-1', nome: 'Lucas', email: 'lucas@teste.dev' },
+    });
+
+    const response = await criarAppDeTeste().inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'lucas@teste.dev', senha: 'senha123' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      token: 'token-fake',
+      usuario: { id: 'usuario-1', nome: 'Lucas', email: 'lucas@teste.dev' },
+    });
+  });
+
+  it('retorna 401 quando o Service lança CredenciaisInvalidasError', async () => {
+    vi.mocked(userService.login).mockRejectedValue(new CredenciaisInvalidasError());
+
+    const response = await criarAppDeTeste().inject({
+      method: 'POST',
+      url: '/login',
+      payload: { email: 'lucas@teste.dev', senha: 'senha-errada' },
+    });
+
+    expect(response.statusCode).toBe(401);
   });
 });

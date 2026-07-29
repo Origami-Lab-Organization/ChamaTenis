@@ -1,7 +1,14 @@
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { env } from '../env';
 import { userRepository } from '../repositories/user.repository';
-import { DadosCadastroInvalidosError, EmailJaCadastradoError, userService } from './user.service';
+import {
+  CredenciaisInvalidasError,
+  DadosCadastroInvalidosError,
+  EmailJaCadastradoError,
+  userService,
+} from './user.service';
 
 vi.mock('../repositories/user.repository', () => ({
   userRepository: {
@@ -70,5 +77,51 @@ describe('userService.cadastrar', () => {
     await expect(
       userService.cadastrar({ nome: 'Lucas', email: 'lucas@teste.dev', senha: '' }),
     ).rejects.toThrow(DadosCadastroInvalidosError);
+  });
+});
+
+describe('userService.login', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('retorna token válido e dados do usuário quando as credenciais batem', async () => {
+    const senhaHash = await bcrypt.hash('senha123', 10);
+    vi.mocked(userRepository.findByEmail).mockResolvedValue({
+      id: 'usuario-1',
+      nome: 'Lucas',
+      email: 'lucas@teste.dev',
+      senhaHash,
+      createdAt: new Date(),
+    });
+
+    const resultado = await userService.login({ email: 'lucas@teste.dev', senha: 'senha123' });
+
+    expect(resultado.usuario).toEqual({ id: 'usuario-1', nome: 'Lucas', email: 'lucas@teste.dev' });
+    const payload = jwt.verify(resultado.token, env.jwtSecret);
+    expect(payload).toMatchObject({ id: 'usuario-1' });
+  });
+
+  it('lança CredenciaisInvalidasError quando o email não existe', async () => {
+    vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
+
+    await expect(
+      userService.login({ email: 'inexistente@teste.dev', senha: 'senha123' }),
+    ).rejects.toThrow(CredenciaisInvalidasError);
+  });
+
+  it('lança CredenciaisInvalidasError quando a senha está errada', async () => {
+    const senhaHash = await bcrypt.hash('senha-correta', 10);
+    vi.mocked(userRepository.findByEmail).mockResolvedValue({
+      id: 'usuario-1',
+      nome: 'Lucas',
+      email: 'lucas@teste.dev',
+      senhaHash,
+      createdAt: new Date(),
+    });
+
+    await expect(
+      userService.login({ email: 'lucas@teste.dev', senha: 'senha-errada' }),
+    ).rejects.toThrow(CredenciaisInvalidasError);
   });
 });
