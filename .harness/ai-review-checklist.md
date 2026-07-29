@@ -27,7 +27,18 @@
 ## Para o backend (Fastify + Prisma)
 
 - Validação de input roda no Service (regra de negócio) — Controller só
-  recebe e delega.
+  recebe e delega. Validação usa schema Zod, não `if` manual solto
+  (`.harness/patterns/backend.md`, ADR-005).
+- Rota registrada com prefixo de domínio (`/api/<dominio>`) via
+  `app.register(..., { prefix })` — bate com o contrato HTTP da história,
+  não hardcoded dentro do arquivo de rotas.
+- Resposta de sucesso usa chave descritiva do recurso (`{ usuario, token }`
+  etc.), nunca envelope genérico `{ data }`. Resposta de erro é
+  `{ error: "<CODIGO_ESTAVEL>" }`, nunca `{ message: "frase livre" }`.
+- Criação com campo único (email, token de convite) trata a violação de
+  constraint única do Postgres (`P2002`) como caminho de erro esperado —
+  não confia só no check-antes-de-criar para evitar duplicata em requisições
+  concorrentes.
 - Variáveis de ambiente obrigatórias (`DATABASE_URL`, `JWT_SECRET`) são
   validadas no boot — processo falha cedo se faltar alguma.
 - Sem N+1 óbvio: não há `findUnique`/`findFirst` dentro de loop quando uma

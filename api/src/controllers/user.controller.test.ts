@@ -26,13 +26,16 @@ describe('cadastrarUsuario (controller)', () => {
     vi.clearAllMocks();
   });
 
-  it('retorna 201 com os dados do usuário criado, sem o hash da senha', async () => {
+  it('retorna 201 com o usuário criado e o token, sem o hash da senha', async () => {
     vi.mocked(userService.cadastrar).mockResolvedValue({
-      id: 'usuario-1',
-      nome: 'Lucas',
-      email: 'lucas@teste.dev',
-      senhaHash: 'hash-nao-deveria-aparecer',
-      createdAt: new Date(),
+      usuario: {
+        id: 'usuario-1',
+        nome: 'Lucas',
+        email: 'lucas@teste.dev',
+        senhaHash: 'hash-nao-deveria-aparecer',
+        createdAt: new Date(),
+      },
+      token: 'jwt-fake-token',
     });
 
     const response = await criarAppDeTeste().inject({
@@ -42,13 +45,14 @@ describe('cadastrarUsuario (controller)', () => {
     });
 
     expect(response.statusCode).toBe(201);
-    const corpo = response.json();
-    expect(corpo).toEqual({ id: 'usuario-1', nome: 'Lucas', email: 'lucas@teste.dev' });
-    expect(corpo.senhaHash).toBeUndefined();
+    expect(response.json()).toEqual({
+      usuario: { id: 'usuario-1', nome: 'Lucas', email: 'lucas@teste.dev' },
+      token: 'jwt-fake-token',
+    });
   });
 
-  it('retorna 409 quando o Service lança EmailJaCadastradoError', async () => {
-    vi.mocked(userService.cadastrar).mockRejectedValue(new EmailJaCadastradoError('lucas@teste.dev'));
+  it('retorna 409 com o código estável quando o Service lança EmailJaCadastradoError', async () => {
+    vi.mocked(userService.cadastrar).mockRejectedValue(new EmailJaCadastradoError());
 
     const response = await criarAppDeTeste().inject({
       method: 'POST',
@@ -57,10 +61,11 @@ describe('cadastrarUsuario (controller)', () => {
     });
 
     expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ error: 'EMAIL_JA_CADASTRADO' });
   });
 
   it('retorna 400 quando o Service lança DadosCadastroInvalidosError', async () => {
-    vi.mocked(userService.cadastrar).mockRejectedValue(new DadosCadastroInvalidosError('Nome é obrigatório'));
+    vi.mocked(userService.cadastrar).mockRejectedValue(new DadosCadastroInvalidosError('nome: obrigatório'));
 
     const response = await criarAppDeTeste().inject({
       method: 'POST',
@@ -69,5 +74,6 @@ describe('cadastrarUsuario (controller)', () => {
     });
 
     expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'nome: obrigatório' });
   });
 });
