@@ -64,11 +64,11 @@ describe('userRepository', () => {
     expect(encontrado).toBeNull();
   });
 
-  it('create com email duplicado propaga o erro de constraint única do Postgres', async () => {
+  it('create com email duplicado propaga o erro de constraint única do Postgres (P2002)', async () => {
     const criado = await criarUsuario();
 
     await expect(
       userRepository.create({ nome: 'Outro Nome', email: criado.email, senhaHash: 'hash-fake' }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: 'P2002' });
   });
 });
