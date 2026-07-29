@@ -10,30 +10,28 @@ function criarAppDeTeste() {
 }
 
 describe('registrarErrorHandler', () => {
-  it('traduz EmailJaCadastradoError pro status 409', async () => {
+  it('traduz EmailJaCadastradoError pro status 409 com o código estável', async () => {
     const app = criarAppDeTeste();
     app.get('/erro-conflito', () => {
-      throw new EmailJaCadastradoError('lucas@teste.dev');
+      throw new EmailJaCadastradoError();
     });
 
     const response = await app.inject({ method: 'GET', url: '/erro-conflito' });
 
     expect(response.statusCode).toBe(409);
-    expect(response.json()).toEqual({
-      message: 'Já existe um usuário cadastrado com o email lucas@teste.dev',
-    });
+    expect(response.json()).toEqual({ error: 'EMAIL_JA_CADASTRADO' });
   });
 
   it('traduz DadosCadastroInvalidosError pro status 400', async () => {
     const app = criarAppDeTeste();
     app.get('/erro-validacao', () => {
-      throw new DadosCadastroInvalidosError('Nome é obrigatório');
+      throw new DadosCadastroInvalidosError('nome: obrigatório');
     });
 
     const response = await app.inject({ method: 'GET', url: '/erro-validacao' });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ message: 'Nome é obrigatório' });
+    expect(response.json()).toEqual({ error: 'nome: obrigatório' });
   });
 
   it('erro desconhecido cai em 500 sem vazar detalhe interno', async () => {
@@ -45,6 +43,6 @@ describe('registrarErrorHandler', () => {
     const response = await app.inject({ method: 'GET', url: '/erro-desconhecido' });
 
     expect(response.statusCode).toBe(500);
-    expect(response.json()).toEqual({ message: 'Erro interno do servidor' });
+    expect(response.json()).toEqual({ error: 'INTERNAL_ERROR' });
   });
 });

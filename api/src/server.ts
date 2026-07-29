@@ -7,7 +7,7 @@ async function main() {
   const app = Fastify({ logger: true });
 
   registrarErrorHandler(app);
-  await registrarRotasDeUsuario(app);
+  await app.register(registrarRotasDeUsuario, { prefix: '/api/auth' });
 
   await app.listen({ port: env.port });
 }
