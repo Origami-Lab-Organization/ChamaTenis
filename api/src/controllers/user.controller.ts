@@ -1,5 +1,4 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { CadastrarUsuarioInput, LoginInput } from '../services/user.service';
 import { userService } from '../services/user.service';
 
 export async function cadastrarUsuario(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -11,10 +10,7 @@ export async function cadastrarUsuario(request: FastifyRequest, reply: FastifyRe
   });
 }
 
-export async function login(
-  request: FastifyRequest<{ Body: LoginInput }>,
-  reply: FastifyReply,
-): Promise<void> {
+export async function login(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const resultado = await userService.login(request.body);
 
   reply.status(200).send(resultado);

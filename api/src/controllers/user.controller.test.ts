@@ -109,7 +109,7 @@ describe('login (controller)', () => {
     });
   });
 
-  it('retorna 401 quando o Service lança CredenciaisInvalidasError', async () => {
+  it('retorna 401 com o código estável quando o Service lança CredenciaisInvalidasError', async () => {
     vi.mocked(userService.login).mockRejectedValue(new CredenciaisInvalidasError());
 
     const response = await criarAppDeTeste().inject({
@@ -119,5 +119,6 @@ describe('login (controller)', () => {
     });
 
     expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: 'CREDENCIAIS_INVALIDAS' });
   });
 });

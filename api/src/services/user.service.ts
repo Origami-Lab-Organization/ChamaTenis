@@ -1,12 +1,11 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import type { User } from '@prisma/client';
 import { Prisma, type User } from '@prisma/client';
 import { z } from 'zod';
 import { env } from '../env';
 import { userRepository } from '../repositories/user.repository';
 import { ErroDeAplicacao } from './erro-de-aplicacao';
-import type { CadastrarUsuarioInput, UserService } from './user.service.types';
+import type { CadastrarUsuarioInput, LoginInput, UserService } from './user.service.types';
 
 const CUSTO_HASH_SENHA = 10;
 const EXPIRACAO_TOKEN = '7d';
@@ -24,6 +23,18 @@ export class DadosCadastroInvalidosError extends ErroDeAplicacao {
   readonly statusCode = 400;
 }
 
+export class DadosLoginInvalidosError extends ErroDeAplicacao {
+  readonly statusCode = 400;
+}
+
+export class CredenciaisInvalidasError extends ErroDeAplicacao {
+  readonly statusCode = 401;
+
+  constructor() {
+    super('CREDENCIAIS_INVALIDAS');
+  }
+}
+
 export const cadastroSchema = z.object({
   nome: z.string().trim().min(1, 'nome: obrigatório'),
   email: z.string().min(1, 'email: obrigatório').email('email: formato inválido'),
@@ -35,6 +46,11 @@ export const cadastroSchema = z.object({
     .regex(/\d/, 'senha: mínimo 8 caracteres, com letra e número'),
 });
 
+export const loginSchema = z.object({
+  email: z.string().min(1, 'email: obrigatório'),
+  senha: z.string().min(1, 'senha: obrigatório'),
+});
+
 function validarDadosCadastro(input: unknown): CadastrarUsuarioInput {
   const resultado = cadastroSchema.safeParse(input);
   if (!resultado.success) {
@@ -44,33 +60,15 @@ function validarDadosCadastro(input: unknown): CadastrarUsuarioInput {
   return resultado.data;
 }
 
-export class CredenciaisInvalidasError extends ErroDeAplicacao {
-  readonly statusCode = 401;
-
-  constructor() {
-    super('Email ou senha inválidos');
+function validarDadosLogin(input: unknown): LoginInput {
+  const resultado = loginSchema.safeParse(input);
+  if (!resultado.success) {
+    const [primeiroErro] = resultado.error.issues;
+    throw new DadosLoginInvalidosError(primeiroErro?.message ?? 'dados de login inválidos');
   }
+  return resultado.data;
 }
 
-export interface CadastrarUsuarioInput {
-  nome: string;
-  email: string;
-  senha: string;
-}
-
-export interface LoginInput {
-  email: string;
-  senha: string;
-}
-
-export interface LoginResultado {
-  token: string;
-  usuario: Pick<User, 'id' | 'nome' | 'email'>;
-}
-
-export interface UserService {
-  cadastrar(input: CadastrarUsuarioInput): Promise<User>;
-  login(input: LoginInput): Promise<LoginResultado>;
 function gerarToken(usuario: User): string {
   return jwt.sign({ id: usuario.id }, env.jwtSecret, { expiresIn: EXPIRACAO_TOKEN });
 }
@@ -106,20 +104,20 @@ export const userService: UserService = {
   },
 
   async login(input) {
-    const usuario = await userRepository.findByEmail(input.email);
+    const dados = validarDadosLogin(input);
+
+    const usuario = await userRepository.findByEmail(dados.email);
     if (!usuario) {
       throw new CredenciaisInvalidasError();
     }
 
-    const senhaValida = await bcrypt.compare(input.senha, usuario.senhaHash);
+    const senhaValida = await bcrypt.compare(dados.senha, usuario.senhaHash);
     if (!senhaValida) {
       throw new CredenciaisInvalidasError();
     }
 
-    const token = jwt.sign({ id: usuario.id }, env.jwtSecret, { expiresIn: EXPIRACAO_TOKEN });
-
     return {
-      token,
+      token: gerarToken(usuario),
       usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email },
     };
   },
