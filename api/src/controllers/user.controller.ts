@@ -9,3 +9,9 @@ export async function cadastrarUsuario(request: FastifyRequest, reply: FastifyRe
     token,
   });
 }
+
+export async function login(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const resultado = await userService.login(request.body);
+
+  reply.status(200).send(resultado);
+}

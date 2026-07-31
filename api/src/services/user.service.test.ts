@@ -4,7 +4,12 @@ import { Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../env';
 import { userRepository } from '../repositories/user.repository';
-import { EmailJaCadastradoError, userService } from './user.service';
+import {
+  CredenciaisInvalidasError,
+  DadosLoginInvalidosError,
+  EmailJaCadastradoError,
+  userService,
+} from './user.service';
 
 vi.mock('../repositories/user.repository', () => ({
   userRepository: {
@@ -108,4 +113,85 @@ describe('userService.cadastrar', () => {
       ).rejects.toMatchObject({ message: 'senha: mínimo 8 caracteres, com letra e número' });
     },
   );
+});
+
+describe('userService.login', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('retorna token válido e dados do usuário quando as credenciais batem', async () => {
+    const senhaHash = await bcrypt.hash('senha123', 10);
+    vi.mocked(userRepository.findByEmail).mockResolvedValue({
+      id: 'usuario-1',
+      nome: 'Lucas',
+      email: 'lucas@teste.dev',
+      senhaHash,
+      createdAt: new Date(),
+    });
+
+    const resultado = await userService.login({ email: 'lucas@teste.dev', senha: 'senha123' });
+
+    expect(resultado.usuario).toEqual({ id: 'usuario-1', nome: 'Lucas', email: 'lucas@teste.dev' });
+    const payload = jwt.verify(resultado.token, env.jwtSecret);
+    expect(payload).toMatchObject({ id: 'usuario-1' });
+  });
+
+  it('lança CredenciaisInvalidasError com código estável quando o email não existe', async () => {
+    vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
+
+    await expect(
+      userService.login({ email: 'inexistente@teste.dev', senha: 'senha123' }),
+    ).rejects.toThrow(CredenciaisInvalidasError);
+    await expect(
+      userService.login({ email: 'inexistente@teste.dev', senha: 'senha123' }),
+    ).rejects.toMatchObject({ message: 'CREDENCIAIS_INVALIDAS' });
+  });
+
+  it('compara a senha com um hash mesmo quando o email não existe, pra não vazar por timing', async () => {
+    vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
+    const compareSpy = vi.spyOn(bcrypt, 'compare');
+
+    await expect(userService.login({ email: 'inexistente@teste.dev', senha: 'senha123' })).rejects.toThrow(
+      CredenciaisInvalidasError,
+    );
+
+    expect(compareSpy).toHaveBeenCalledWith('senha123', expect.any(String));
+  });
+
+  it('lança CredenciaisInvalidasError com código estável quando a senha está errada', async () => {
+    const senhaHash = await bcrypt.hash('senha-correta', 10);
+    vi.mocked(userRepository.findByEmail).mockResolvedValue({
+      id: 'usuario-1',
+      nome: 'Lucas',
+      email: 'lucas@teste.dev',
+      senhaHash,
+      createdAt: new Date(),
+    });
+
+    await expect(
+      userService.login({ email: 'lucas@teste.dev', senha: 'senha-errada' }),
+    ).rejects.toThrow(CredenciaisInvalidasError);
+    await expect(
+      userService.login({ email: 'lucas@teste.dev', senha: 'senha-errada' }),
+    ).rejects.toMatchObject({ message: 'CREDENCIAIS_INVALIDAS' });
+  });
+
+  it('lança DadosLoginInvalidosError quando o email está ausente', async () => {
+    await expect(
+      userService.login({ email: '', senha: 'senha123' }),
+    ).rejects.toMatchObject({ message: 'email: obrigatório' });
+    expect(userRepository.findByEmail).not.toHaveBeenCalled();
+  });
+
+  it('lança DadosLoginInvalidosError quando a senha está ausente', async () => {
+    await expect(
+      userService.login({ email: 'lucas@teste.dev', senha: '' }),
+    ).rejects.toMatchObject({ message: 'senha: obrigatório' });
+  });
+
+  it('lança DadosLoginInvalidosError quando o corpo da requisição não tem os campos esperados', async () => {
+    await expect(userService.login({})).rejects.toThrow(DadosLoginInvalidosError);
+    expect(userRepository.findByEmail).not.toHaveBeenCalled();
+  });
 });
