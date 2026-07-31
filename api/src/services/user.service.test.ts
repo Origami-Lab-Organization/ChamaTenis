@@ -148,6 +148,17 @@ describe('userService.login', () => {
     ).rejects.toMatchObject({ message: 'CREDENCIAIS_INVALIDAS' });
   });
 
+  it('compara a senha com um hash mesmo quando o email não existe, pra não vazar por timing', async () => {
+    vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
+    const compareSpy = vi.spyOn(bcrypt, 'compare');
+
+    await expect(userService.login({ email: 'inexistente@teste.dev', senha: 'senha123' })).rejects.toThrow(
+      CredenciaisInvalidasError,
+    );
+
+    expect(compareSpy).toHaveBeenCalledWith('senha123', expect.any(String));
+  });
+
   it('lança CredenciaisInvalidasError com código estável quando a senha está errada', async () => {
     const senhaHash = await bcrypt.hash('senha-correta', 10);
     vi.mocked(userRepository.findByEmail).mockResolvedValue({

@@ -10,6 +10,8 @@ import type { CadastrarUsuarioInput, LoginInput, UserService } from './user.serv
 const CUSTO_HASH_SENHA = 10;
 const EXPIRACAO_TOKEN = '7d';
 const CODIGO_CONSTRAINT_UNICA = 'P2002';
+// Comparado quando o email não existe, pra não revelar por timing quais emails estão cadastrados.
+const HASH_SEM_USUARIO_CORRESPONDENTE = '$2b$10$ZfF8r52JuijaOa4nXxRNbO4SCVsoiu.vZdaxp.2UtOxbLi37imWz2';
 
 export class EmailJaCadastradoError extends ErroDeAplicacao {
   readonly statusCode = 409;
@@ -107,12 +109,9 @@ export const userService: UserService = {
     const dados = validarDadosLogin(input);
 
     const usuario = await userRepository.findByEmail(dados.email);
-    if (!usuario) {
-      throw new CredenciaisInvalidasError();
-    }
+    const senhaValida = await bcrypt.compare(dados.senha, usuario?.senhaHash ?? HASH_SEM_USUARIO_CORRESPONDENTE);
 
-    const senhaValida = await bcrypt.compare(dados.senha, usuario.senhaHash);
-    if (!senhaValida) {
+    if (!usuario || !senhaValida) {
       throw new CredenciaisInvalidasError();
     }
 
